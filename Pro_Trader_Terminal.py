@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════════════════════
-# Pro Trader Terminal v5.3.1 - FIXED EDITION
+# Pro Trader Terminal v5.3.2 - CLEAN EDITION
 # ════════════════════════════════════════════════════════════════════════════════
 
 import streamlit as st
@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="Pro Trader Terminal v5.3.1",
+    page_title="Pro Trader Terminal v5.3.2",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -28,25 +28,6 @@ st.markdown("""
 <style>
     .stApp { background: #0e1117; }
     h1, h2, h3 { color: #ffffff !important; }
-    .metric-card {
-        background: linear-gradient(135deg, #1e2530 0%, #161b22 100%);
-        border: 1px solid #30363d;
-        border-radius: 10px;
-        padding: 15px;
-        margin: 5px 0;
-    }
-    .success-box {
-        padding: 10px; border-radius: 5px;
-        background: rgba(0,217,126,0.1); border-left: 4px solid #00d97e;
-    }
-    .error-box {
-        padding: 10px; border-radius: 5px;
-        background: rgba(255,71,87,0.1); border-left: 4px solid #ff4757;
-    }
-    .dataframe thead th { background: #1e2530 !important; color: white !important; }
-    .dataframe tbody tr:hover { background: rgba(88,166,255,0.1) !important; }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] { padding: 10px 20px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,15 +36,15 @@ st.markdown("""
 # ============================================================
 
 SECTOR_PEERS = {
-    "Thép": ["HPG", "HSG", "NKG"],
-    "Ngân hàng": ["VPB", "VCB", "TCB", "CTG", "BID", "STB", "MBB", "ACB"],
-    "Bất động sản": ["VRE", "NVL", "DIG", "KDH", "CRE", "ASM"],
-    "Chứng khoán": ["SSI", "VND", "HCM", "TCBS", "BSI", "VIS"],
-    "Bán lẻ": ["MWG", "PNJ", "DGW", "FPT", "PET"],
-    "Dầu khí": ["PLX", "POW", "GAS", "PVT"],
-    "Thực phẩm": ["VNM", "MSB", "KDC", "SBT", "GTN"],
-    "Công nghệ": ["FPT", "CMG", "VGI", "SRA"],
-    "Xây dựng": ["VCG", "HDG", "C4G", "ROS"]
+    "Thep": ["HPG", "HSG", "NKG"],
+    "Ngan hang": ["VPB", "VCB", "TCB", "CTG", "BID", "STB", "MBB", "ACB"],
+    "Bat dong san": ["VRE", "NVL", "DIG", "KDH", "CRE", "ASM"],
+    "Chung khoan": ["SSI", "VND", "HCM", "TCBS", "BSI", "VIS"],
+    "Ban le": ["MWG", "PNJ", "DGW", "FPT", "PET"],
+    "Dau khi": ["PLX", "POW", "GAS", "PVT"],
+    "Thuc pham": ["VNM", "MSB", "KDC", "SBT", "GTN"],
+    "Cong nghe": ["FPT", "CMG", "VGI", "SRA"],
+    "Xay dung": ["VCG", "HDG", "C4G", "ROS"]
 }
 
 ALL_SYMBOLS = [sym for symbols in SECTOR_PEERS.values() for sym in symbols]
@@ -78,73 +59,64 @@ start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 def validate_symbol(sym: str) -> tuple:
     """Validate stock symbol format"""
     if not sym or not isinstance(sym, str):
-        return False, "Mã cổ phiếu không được trống"
+        return False, "Ma co phieu khong duoc trong"
     
     sym = sym.strip().upper()
     
     if not re.match(r'^[A-Z]{3}$', sym):
-        return False, "Mã cổ phiếu phải là 3 chữ cái (VD: HPG, VPB)"
+        return False, "Ma co phieu phai la 3 chu cai (VD: HPG, VPB)"
     
     if sym not in ALL_SYMBOLS:
-        return True, f"Cảnh báo: {sym} chưa có trong danh sách mẫu"
+        return True, f"Canh bao: {sym} chua co trong danh sach"
     
     return True, ""
-
-def clear_cache():
-    """Clear all cached data"""
-    keys_to_clear = ['stock_data', 'scan_results', 'scan_key', 'last_symbol', 'price_data', 'fundamental_data']
-    for key in keys_to_clear:
-        if key in st.session_state:
-            try:
-                del st.session_state[key]
-            except:
-                pass
-    
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    st.success("🗑️ Đã xóa cache! Trang sẽ reload...")
-    st.rerun()
 
 # ============================================================
 # DATA FETCHING (Multi-Source)
 # ============================================================
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_price(sym: str, days: int = 30, interval: str = "1D") -> tuple:
     """
-    Fetch price data với multi-source fallback
-    Priority: KBS (vnstock) → CafeF → Yahoo Finance
+    Fetch price data with multi-source fallback
     """
     sym = sym.upper().strip()
     info = {"source": None, "runtime": 0, "status": "pending", "rows": 0}
     
     start_time = time.time()
     
-    # SOURCE 1: KBS via vnstock
+    # SOURCE 1: Yahoo Finance (most reliable)
     try:
-        from vnstock import Quote
-        df = Quote(symbol=sym, source="KBS").history(
-            start=start_date, end=end_date, interval=interval
-        )
-        df = df.rename(columns={
-            'close': 'Close', 
-            'volume': 'Volume', 
-            'open': 'Open', 
-            'high': 'High', 
-            'low': 'Low'
-        })
-        df = df.dropna(subset=['Close'])
+        import yfinance as yf
+        
+        yf_sym = f"{sym}.VN"
+        ticker = yf.Ticker(yf_sym)
+        df = ticker.history(start=start_date, end=end_date, interval=interval)
         
         if len(df) > 1:
-            info["source"] = "KBS ✅"
-            info["runtime"] = round(time.time() - start_time, 2)
-            info["status"] = "success"
-            info["rows"] = len(df)
-            return df, info
+            df = df.rename(columns={
+                'Open': 'Open', 
+                'High': 'High', 
+                'Low': 'Low',
+                'Close': 'Close', 
+                'Volume': 'Volume'
+            })
+            
+            if 'Stock Splits' in df.columns:
+                df = df.drop('Stock Splits', axis=1)
+            
+            df = df.dropna()
+            
+            if len(df) > 1:
+                info["source"] = "Yahoo"
+                info["runtime"] = round(time.time() - start_time, 2)
+                info["status"] = "success"
+                info["rows"] = len(df)
+                return df, info
     except ImportError:
-        info["source"] = "vnstock not installed"
+        info["source"] = "yfinance not installed"
     except Exception as e:
-        info["source"] = f"KBS Error: {str(e)[:30]}"
+        info["source"] = f"Yahoo Error"
     
     # SOURCE 2: CafeF
     try:
@@ -177,46 +149,39 @@ def fetch_price(sym: str, days: int = 30, interval: str = "1D") -> tuple:
                 df = df.apply(pd.to_numeric, errors='coerce').dropna()
                 
                 if len(df) > 1:
-                    info["source"] = "CafeF ✅"
+                    info["source"] = "CafeF"
                     info["runtime"] = round(time.time() - start_time, 2)
                     info["status"] = "success"
                     info["rows"] = len(df)
                     return df, info
     except Exception as e:
-        info["source"] = f"CafeF Error: {str(e)[:30]}"
+        info["source"] = f"CafeF Error"
     
-    # SOURCE 3: Yahoo Finance
+    # SOURCE 3: KBS via vnstock
     try:
-        import yfinance as yf
-        
-        yf_sym = f"{sym}.VN"
-        ticker = yf.Ticker(yf_sym)
-        df = ticker.history(start=start_date, end=end_date, interval=interval)
+        from vnstock import Quote
+        df = Quote(symbol=sym, source="KBS").history(
+            start=start_date, end=end_date, interval=interval
+        )
+        df = df.rename(columns={
+            'close': 'Close', 
+            'volume': 'Volume', 
+            'open': 'Open', 
+            'high': 'High', 
+            'low': 'Low'
+        })
+        df = df.dropna(subset=['Close'])
         
         if len(df) > 1:
-            df = df.rename(columns={
-                'Open': 'Open', 
-                'High': 'High', 
-                'Low': 'Low',
-                'Close': 'Close', 
-                'Volume': 'Volume'
-            })
-            
-            if 'Stock Splits' in df.columns:
-                df = df.drop('Stock Splits', axis=1)
-            
-            df = df.dropna()
-            
-            if len(df) > 1:
-                info["source"] = "Yahoo ✅"
-                info["runtime"] = round(time.time() - start_time, 2)
-                info["status"] = "success"
-                info["rows"] = len(df)
-                return df, info
+            info["source"] = "KBS"
+            info["runtime"] = round(time.time() - start_time, 2)
+            info["status"] = "success"
+            info["rows"] = len(df)
+            return df, info
     except ImportError:
-        info["source"] = "yfinance not installed"
+        info["source"] = "vnstock not installed"
     except Exception as e:
-        info["source"] = f"Yahoo Error: {str(e)[:30]}"
+        info["source"] = f"KBS Error"
     
     info["status"] = "failed"
     info["runtime"] = round(time.time() - start_time, 2)
@@ -225,6 +190,17 @@ def fetch_price(sym: str, days: int = 30, interval: str = "1D") -> tuple:
 # ============================================================
 # TECHNICAL INDICATORS
 # ============================================================
+
+def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Calculate Average True Range"""
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    
+    return true_range.rolling(window=period).mean()
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Add technical indicators to dataframe"""
@@ -262,8 +238,11 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['SMA_20'] = df['Close'].rolling(window=20).mean()
     df['SMA_50'] = df['Close'].rolling(window=50).mean()
     
-    # ATR (FIXED: remove space)
-    df['ATR'] = calculate_atr(df) if len(df) > 14 else 0
+    # ATR
+    if len(df) > 14:
+        df['ATR'] = calculate_atr(df)
+    else:
+        df['ATR'] = 0
     
     # Volume indicators
     df['Volume_SMA'] = df['Volume'].rolling(window=20).mean()
@@ -276,17 +255,6 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Calculate Average True Range"""
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = ranges.max(axis=1)
-    
-    return true_range.rolling(window=period).mean()
-
 # ============================================================
 # SIGNAL CALCULATION
 # ============================================================
@@ -294,7 +262,7 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 def calculate_signal(df: pd.DataFrame) -> tuple:
     """Calculate trading signal"""
     if df is None or len(df) < 2:
-        return "KHÔNG ĐỦ DỮ LIỆU", 0, {}
+        return "KHONG DU LIEU", 0, {}
     
     latest = df.iloc[-1]
     
@@ -307,18 +275,18 @@ def calculate_signal(df: pd.DataFrame) -> tuple:
     
     if rsi < 30:
         score += 3
-        signals['RSI_Signal'] = "QUÁ BÁN"
+        signals['RSI_Signal'] = "QUA BAN"
     elif rsi < 40:
         score += 2
-        signals['RSI_Signal'] = "Gần quá bán"
+        signals['RSI_Signal'] = "Gan qua ban"
     elif rsi > 70:
         score -= 3
-        signals['RSI_Signal'] = "QUÁ MUA"
+        signals['RSI_Signal'] = "QUA MUA"
     elif rsi > 60:
         score -= 2
-        signals['RSI_Signal'] = "Gần quá mua"
+        signals['RSI_Signal'] = "Gan qua mua"
     else:
-        signals['RSI_Signal'] = "Trung lập"
+        signals['RSI_Signal'] = "Trung lap"
     
     # EMA Trend Analysis
     ema_20 = latest.get('EMA_20', latest['Close'])
@@ -332,20 +300,20 @@ def calculate_signal(df: pd.DataFrame) -> tuple:
     
     if ema_20 > ema_50:
         score += 2
-        signals['EMA_Trend'] = "TĂNG"
+        signals['EMA_Trend'] = "TANG"
         if ema_50 > ema_200:
             score += 1
-            signals['EMA_Strength'] = "Rất mạnh"
+            signals['EMA_Strength'] = "Rat manh"
         else:
-            signals['EMA_Strength'] = "Trung bình"
+            signals['EMA_Strength'] = "Trung binh"
     else:
         score -= 2
-        signals['EMA_Trend'] = "GIẢM"
+        signals['EMA_Trend'] = "GIAM"
         if ema_50 < ema_200:
             score -= 1
-            signals['EMA_Strength'] = "Rất yếu"
+            signals['EMA_Strength'] = "Rat yeu"
         else:
-            signals['EMA_Strength'] = "Trung bình"
+            signals['EMA_Strength'] = "Trung binh"
     
     if current_price > ema_20:
         score += 1
@@ -365,13 +333,13 @@ def calculate_signal(df: pd.DataFrame) -> tuple:
         signals['MACD_Signal'] = "MUA"
     elif macd > signal_line and macd < 0:
         score += 1
-        signals['MACD_Signal'] = "Dần hồi phục"
+        signals['MACD_Signal'] = "Dan hoi phuc"
     elif macd < signal_line and macd < 0:
         score -= 2
-        signals['MACD_Signal'] = "BÁN"
+        signals['MACD_Signal'] = "BAN"
     else:
         score -= 1
-        signals['MACD_Signal'] = "Dần suy yếu"
+        signals['MACD_Signal'] = "Dan suy yeu"
     
     # Bollinger Bands
     bb_upper = latest.get('BB_Upper', current_price)
@@ -386,12 +354,12 @@ def calculate_signal(df: pd.DataFrame) -> tuple:
     
     if bb_position < 0.2:
         score += 2
-        signals['BB_Position'] = "Gần dưới"
+        signals['BB_Position'] = "Gan duoi"
     elif bb_position > 0.8:
         score -= 2
-        signals['BB_Position'] = "Gần trên"
+        signals['BB_Position'] = "Gan tren"
     else:
-        signals['BB_Position'] = "Giữa"
+        signals['BB_Position'] = "Giua"
     
     # Volume Analysis
     vol_ratio = latest.get('Volume_Ratio', 1)
@@ -399,24 +367,24 @@ def calculate_signal(df: pd.DataFrame) -> tuple:
     
     if vol_ratio > 1.5:
         score += 1
-        signals['Volume_Signal'] = "Khối lượng tăng mạnh"
+        signals['Volume_Signal'] = "Khoi luong tang manh"
     elif vol_ratio < 0.5:
         score -= 1
-        signals['Volume_Signal'] = "Khối lượng thấp"
+        signals['Volume_Signal'] = "Khoi luong thap"
     else:
-        signals['Volume_Signal'] = "Bình thường"
+        signals['Volume_Signal'] = "Binh thuong"
     
     # Final Signal
     if score >= 4:
-        final_signal = "MUA MẠNH"
+        final_signal = "MUA MANH"
     elif score >= 2:
-        final_signal = "TÍCH CỰC"
+        final_signal = "TICH CUC"
     elif score <= -4:
-        final_signal = "BÁN MẠNH"
+        final_signal = "BAN MANH"
     elif score <= -2:
-        final_signal = "TIÊU CỰC"
+        final_signal = "TIEU CUC"
     else:
-        final_signal = "TRUNG LẬP"
+        final_signal = "TRUNG LAP"
     
     signals['Score'] = score
     signals['Price'] = current_price
@@ -434,7 +402,7 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> go.Figure:
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=[0.5, 0.15, 0.15, 0.2],
-        x_title="Thời gian"
+        x_title="Thoi gian"
     )
     
     # Candlestick
@@ -507,10 +475,8 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> go.Figure:
                       line=dict(color="#58a6ff", width=2)),
             row=3, col=1
         )
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1,
-                     annotation_text="30", annotation_position="bottom right")
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1,
-                     annotation_text="70", annotation_position="bottom right")
+        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
     
     # MACD
     if 'MACD' in df.columns:
@@ -570,7 +536,7 @@ def scan_sector(symbols: list, days: int = 30) -> pd.DataFrame:
     status_text = st.empty()
     
     for i, sym in enumerate(symbols):
-        status_text.text(f"⏳ Đang phân tích {sym}...")
+        status_text.text(f"Dang phan tich {sym}...")
         progress_bar.progress((i + 1) / len(symbols))
         
         try:
@@ -582,27 +548,27 @@ def scan_sector(symbols: list, days: int = 30) -> pd.DataFrame:
                 latest = df.iloc[-1]
                 
                 results.append({
-                    'Mã': sym,
-                    'Giá': round(latest['Close'], 2),
+                    'Ma': sym,
+                    'Gia': round(latest['Close'], 2),
                     'RSI': round(signals.get('RSI', 50), 1),
-                    'Xu hướng': signals.get('EMA_Trend', 'N/A'),
+                    'Xu huong': signals.get('EMA_Trend', 'N/A'),
                     'MACD': signals.get('MACD_Signal', 'N/A'),
-                    'Khối lượng': f"{signals.get('Volume_Ratio', 1):.1f}x",
-                    'Tín hiệu': signal,
-                    'Điểm': score,
-                    'Nguồn': info.get('source', 'Unknown')
+                    'Khoi luong': f"{signals.get('Volume_Ratio', 1):.1f}x",
+                    'Tin hieu': signal,
+                    'Diem': score,
+                    'Nguon': info.get('source', 'Unknown')
                 })
         except Exception as e:
             results.append({
-                'Mã': sym, 'Giá': 'Lỗi', 'RSI': 'N/A',
-                'Xu hướng': 'N/A', 'MACD': 'N/A',
-                'Khối lượng': 'N/A', 'Tín hiệu': 'Lỗi',
-                'Điểm': 0, 'Nguồn': 'Failed'
+                'Ma': sym, 'Gia': 'Loi', 'RSI': 'N/A',
+                'Xu huong': 'N/A', 'MACD': 'N/A',
+                'Khoi luong': 'N/A', 'Tin hieu': 'Loi',
+                'Diem': 0, 'Nguon': 'Failed'
             })
         
         time.sleep(0.5)
     
-    status_text.text("✅ Hoàn tất!")
+    status_text.text("Hoan tat!")
     progress_bar.empty()
     
     return pd.DataFrame(results)
@@ -614,19 +580,15 @@ def scan_sector(symbols: list, days: int = 30) -> pd.DataFrame:
 def main():
     # === SIDEBAR ===
     with st.sidebar:
-        st.markdown("""
-            <div style="text-align:center; margin-bottom:15px;">
-                <h1 style="font-size:20px; color:#58a6ff;">📊 Pro Trader Terminal</h1>
-                <p style="color:#8b949e; font-size:12px;">v5.3.1 - Fixed Edition</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### Pro Trader Terminal")
+        st.markdown("**v5.3.2**")
         
         st.divider()
         
         # Symbol Input
-        st.markdown("**🔍 Nhập mã cổ phiếu**")
+        st.markdown("**Nhap ma co phieu**")
         symbol = st.text_input(
-            "Mã cổ phiếu", 
+            "Ma co phieu", 
             value="HPG", 
             placeholder="VD: HPG, VPB, SSI",
             label_visibility="collapsed"
@@ -634,19 +596,19 @@ def main():
         
         is_valid, msg = validate_symbol(symbol)
         if not is_valid:
-            st.error(f"❌ {msg}")
-            st.stop()
-        elif "Cảnh báo" in msg:
+            st.error(msg)
+            return
+        elif "Canh bao" in msg:
             st.warning(msg)
         
         st.divider()
         
         # Time Period
-        st.markdown("**⏱️ Khoảng thời gian**")
-        days = st.slider("", 10, 365, 60, label_visibility="collapsed")
+        st.markdown("**Khoang thoi gian**")
+        days = st.slider("Days", 10, 365, 60, label_visibility="collapsed")
         
         # Resolution
-        st.markdown("**📊 Độ phân giải**")
+        st.markdown("**Do phan giai**")
         resolution = st.selectbox(
             "Resolution",
             ["1D", "1H", "15m", "30m"],
@@ -655,286 +617,143 @@ def main():
         
         st.divider()
         
-        # Control Buttons
-        st.markdown("**🎛️ Điều khiển**")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.button("🔄 Refresh", use_container_width=True)
-        with col2:
-            st.button("🗑️ Clear Cache", on_click=clear_cache, use_container_width=True)
-        
-        st.divider()
-        
         # Sector Selection
-        st.markdown("**📂 Chọn ngành**")
-        sector_options = ["Tất cả"] + list(SECTOR_PEERS.keys())
+        st.markdown("**Chon nganh**")
+        sector_options = ["Tat ca"] + list(SECTOR_PEERS.keys())
         selected_sector = st.selectbox("Sector", sector_options)
     
     # === MAIN CONTENT ===
-    st.markdown("""
-        <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:28px; margin-bottom:5px;">📊 PHÂN TÍCH KỸ THUẬT CỔ PHIẾU</h1>
-            <p style="color:#8b949e;">Pro Trader Terminal v5.3.1 - Multi-Source Data</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("# PHAN TICH KY THUAT CO PHIEU")
+    st.markdown("Pro Trader Terminal v5.3.2 - Multi-Source Data")
     
-    # === TABS ===
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📈 Phân tích kỹ thuật",
-        "📊 So sánh ngành",
-        "📋 Dữ liệu giá",
-        "📰 Tin tức",
-        "ℹ️ Hướng dẫn"
-    ])
+    st.divider()
     
-    # ============================================================
-    # TAB 1: TECHNICAL ANALYSIS
-    # ============================================================
-    with tab1:
-        st.markdown('<p style="color:#58a6ff; margin-bottom:10px;"><b>PHÂN TÍCH KỸ THUẬT</b></p>', unsafe_allow_html=True)
-        
-        with st.spinner("⏳ Đang tải dữ liệu..."):
-            df, info = fetch_price(symbol, days, resolution)
-            
-            if df.empty or info.get("status") == "failed":
-                st.error(f"""
-                    ❌ **Không thể lấy dữ liệu cho {symbol}**
-                    
-                    **Nguyên nhân:** Tất cả các nguồn dữ liệu đều không hoạt động
-                    
-                    **Giải pháp:**
-                    1. Kiểm tra mã cổ phiếu có đúng không
-                    2. Thử lại sau vài phút
-                    3. Liên hệ hỗ trợ nếu vấn đề tiếp tục
-                """)
-                st.stop()
-            
-            # Calculate indicators
-            df = add_indicators(df)
-            signal, score, signals = calculate_signal(df)
-            latest = df.iloc[-1]
-            prev_day = df.iloc[-2] if len(df) > 1 else latest
-            
-            # Price change
-            price_change = latest['Close'] - prev_day['Close']
-            price_change_pct = (price_change / prev_day['Close']) * 100
-            change_icon = "📈" if price_change >= 0 else "📉"
-            
-            # === METRICS ROW ===
-            col1, col2, col3, col4, col5 = st.columns(5)
-            
-            with col1:
-                st.metric(
-                    "💰 Giá hiện tại",
-                    f"{latest['Close']:,.0f}",
-                    f"{change_icon} {price_change_pct:+.2f}%"
-                )
-            
-            with col2:
-                st.metric("📉 Cao nhất", f"{latest['High']:,.0f}")
-            
-            with col3:
-                st.metric("📈 Thấp nhất", f"{latest['Low']:,.0f}")
-            
-            with col4:
-                st.metric("📊 RSI (14)", f"{signals.get('RSI', 50):.1f}")
-            
-            with col5:
-                st.metric("💾 Nguồn", info.get('source', 'N/A'))
-            
-            # === SIGNAL BOX ===
-            st.divider()
-            
-            if signal == "MUA MẠNH":
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #00d97e 0%, #00b369 100%); 
-                                padding: 25px; border-radius: 12px; text-align: center; 
-                                box-shadow: 0 4px 20px rgba(0,217,126,0.4); margin: 15px 0;">
-                        <h1 style="color: white; margin: 0; font-size: 32px;">🚀 MUA MẠNH</h1>
-                        <p style="color: white; margin-top: 10px; font-size: 18px;">
-                            Điểm số: <b>{score:.1f}</b>/10 • RSI: <b>{signals.get('RSI', 50):.1f}</b>
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-            elif signal == "BÁN MẠNH":
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #ff4757 0%, #cc1133 100%); 
-                                padding: 25px; border-radius: 12px; text-align: center; 
-                                box-shadow: 0 4px 20px rgba(255,71,87,0.4); margin: 15px 0;">
-                        <h1 style="color: white; margin: 0; font-size: 32px;">🚨 BÁN MẠNH</h1>
-                        <p style="color: white; margin-top: 10px; font-size: 18px;">
-                            Điểm số: <b>{score:.1f}</b>/10 • RSI: <b>{signals.get('RSI', 50):.1f}</b>
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #748ffc 0%, #5c7cfa 100%); 
-                                padding: 25px; border-radius: 12px; text-align: center; 
-                                box-shadow: 0 4px 20px rgba(116,143,252,0.4); margin: 15px 0;">
-                        <h1 style="color: white; margin: 0; font-size: 32px;">⚖️ {signal}</h1>
-                        <p style="color: white; margin-top: 10px; font-size: 18px;">
-                            Điểm số: <b>{score:.1f}</b>/10 • RSI: <b>{signals.get('RSI', 50):.1f}</b>
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            # === SIGNALS DETAILS ===
-            with st.expander("📋 Chi tiết tín hiệu", expanded=True):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("**Chỉ báo**")
-                    st.write(f"📊 RSI: **{signals.get('RSI', 50):.1f}** ({signals.get('RSI_Signal', 'N/A')})")
-                    st.write(f"📈 Xu hướng EMA: **{signals.get('EMA_Trend', 'N/A')}** ({signals.get('EMA_Strength', 'N/A')})")
-                    st.write(f"💹 MACD: **{signals.get('MACD_Signal', 'N/A')}**")
-                    st.write(f"📐 Bollinger: **{signals.get('BB_Position', 'N/A')}**")
-                    st.write(f"📦 Khối lượng: **{signals.get('Volume_Signal', 'N/A')}**")
-                
-                with col2:
-                    st.markdown("**Giá & EMA**")
-                    st.write(f"💰 Giá: **{latest['Close']:,.0f}**")
-                    st.write(f"📈 EMA20: **{signals.get('EMA_20', latest['Close']):,.0f}**")
-                    st.write(f"📈 EMA50: **{signals.get('EMA_50', latest['Close']):,.0f}**")
-                    st.write(f"📈 EMA200: **{signals.get('EMA_200', latest['Close']):,.0f}**")
-                    st.write(f"📐 BB Upper: **{signals.get('BB_Upper', latest['Close']):,.0f}**")
-                    st.write(f"📐 BB Lower: **{signals.get('BB_Lower', latest['Close']):,.0f}**")
-            
-            # === CHART ===
-            st.divider()
-            
-            fig = create_candlestick_chart(df, symbol)
-            st.plotly_chart(fig, use_container_width=True, theme="dark")
-            
-            # === DOWNLOAD ===
-            excel_data = to_excel(df)
-            st.download_button(
-                label="📥 Tải Xuống Dữ Liệu (Excel)",
-                data=excel_data,
-                file_name=f"{symbol}_technical_analysis.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+    # === FETCH DATA ===
+    with st.spinner("Dang tai du lieu..."):
+        df, info = fetch_price(symbol, days, resolution)
     
-    # ============================================================
-    # TAB 2: SECTOR COMPARISON
-    # ============================================================
-    with tab2:
-        st.markdown('<p style="color:#58a6ff; margin-bottom:10px;"><b>SO SÁNH NGÀNH</b></p>', unsafe_allow_html=True)
-        
-        if selected_sector == "Tất cả":
-            scan_symbols = ALL_SYMBOLS
-            st.info("🔍 Đang quét tất cả cổ phiếu...")
-        else:
-            scan_symbols = SECTOR_PEERS.get(selected_sector, [])
-            st.info(f"🔍 Đang quét ngành: **{selected_sector}**")
-        
-        if st.button("🚀 Bắt đầu quét", type="primary"):
-            results_df = scan_sector(scan_symbols, days)
-            
-            if not results_df.empty:
-                results_df = results_df.sort_values('Điểm', ascending=False)
-                
-                def highlight_signal(val):
-                    if val == 'MUA MẠNH':
-                        return 'background-color: rgba(0,217,126,0.3); color: #00d97e'
-                    elif val == 'BÁN MẠNH':
-                        return 'background-color: rgba(255,71,87,0.3); color: #ff4757'
-                    elif val == 'TÍCH CỰC':
-                        return 'background-color: rgba(0,217,126,0.2); color: #7bed9f'
-                    elif val == 'TIÊU CỰC':
-                        return 'background-color: rgba(255,71,87,0.2); color: #ff6b6b'
-                    return ''
-                
-                st.dataframe(
-                    results_df.style.applymap(highlight_signal, subset=['Tín hiệu']),
-                    use_container_width=True,
-                    height=500
-                )
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("🟢 Mua mạnh", len(results_df[results_df['Tín hiệu'] == 'MUA MẠNH']))
-                with col2:
-                    st.metric("🔴 Bán mạnh", len(results_df[results_df['Tín hiệu'] == 'BÁN MẠNH']))
-                with col3:
-                    st.metric("📊 Tổng cổ phiếu", len(results_df))
+    if df.empty or info.get("status") == "failed":
+        st.error(f"Khong the lay du lieu cho {symbol}. Vui long thu lai sau.")
+        return
     
-    # ============================================================
-    # TAB 3: PRICE DATA
-    # ============================================================
-    with tab3:
-        st.markdown('<p style="color:#58a6ff; margin-bottom:10px;"><b>DỮ LIỆU GIÁ</b></p>', unsafe_allow_html=True)
+    # Calculate indicators
+    df = add_indicators(df)
+    signal, score, signals = calculate_signal(df)
+    latest = df.iloc[-1]
+    prev_day = df.iloc[-2] if len(df) > 1 else latest
+    
+    # Price change
+    price_change = latest['Close'] - prev_day['Close']
+    price_change_pct = (price_change / prev_day['Close']) * 100
+    change_icon = "+" if price_change >= 0 else ""
+    
+    # === METRICS ROW ===
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric(
+            "Gia hien tai",
+            f"{latest['Close']:,.0f}",
+            f"{change_icon}{price_change_pct:.2f}%"
+        )
+    
+    with col2:
+        st.metric("Cao nhat", f"{latest['High']:,.0f}")
+    
+    with col3:
+        st.metric("Thap nhat", f"{latest['Low']:,.0f}")
+    
+    with col4:
+        st.metric("RSI (14)", f"{signals.get('RSI', 50):.1f}")
+    
+    with col5:
+        st.metric("Nguon", info.get('source', 'N/A'))
+    
+    # === SIGNAL BOX ===
+    st.divider()
+    
+    if signal == "MUA MANH":
+        st.success(f"**MUA MANH** | Diem: {score:.1f} | RSI: {signals.get('RSI', 50):.1f}")
+    elif signal == "BAN MANH":
+        st.error(f"**BAN MANH** | Diem: {score:.1f} | RSI: {signals.get('RSI', 50):.1f}")
+    elif signal == "TICH CUC":
+        st.info(f"**TICH CUC** | Diem: {score:.1f} | RSI: {signals.get('RSI', 50):.1f}")
+    elif signal == "TIEU CUC":
+        st.warning(f"**TIEU CUC** | Diem: {score:.1f} | RSI: {signals.get('RSI', 50):.1f}")
+    else:
+        st.info(f"**TRUNG LAP** | Diem: {score:.1f} | RSI: {signals.get('RSI', 50):.1f}")
+    
+    # === SIGNALS DETAILS ===
+    with st.expander("Chi tiet tin hieu", expanded=True):
+        col1, col2 = st.columns(2)
         
-        if not df.empty:
+        with col1:
+            st.markdown("**Chi bao**")
+            st.write(f"RSI: {signals.get('RSI', 50):.1f} ({signals.get('RSI_Signal', 'N/A')})")
+            st.write(f"Xu huong EMA: {signals.get('EMA_Trend', 'N/A')} ({signals.get('EMA_Strength', 'N/A')})")
+            st.write(f"MACD: {signals.get('MACD_Signal', 'N/A')}")
+            st.write(f"Bollinger: {signals.get('BB_Position', 'N/A')}")
+            st.write(f"Khoi luong: {signals.get('Volume_Signal', 'N/A')}")
+        
+        with col2:
+            st.markdown("**Gia & EMA**")
+            st.write(f"Gia: {latest['Close']:,.0f}")
+            st.write(f"EMA20: {signals.get('EMA_20', latest['Close']):,.0f}")
+            st.write(f"EMA50: {signals.get('EMA_50', latest['Close']):,.0f}")
+            st.write(f"EMA200: {signals.get('EMA_200', latest['Close']):,.0f}")
+            st.write(f"BB Upper: {signals.get('BB_Upper', latest['Close']):,.0f}")
+            st.write(f"BB Lower: {signals.get('BB_Lower', latest['Close']):,.0f}")
+    
+    # === CHART ===
+    st.divider()
+    
+    fig = create_candlestick_chart(df, symbol)
+    st.plotly_chart(fig)
+    
+    # === DOWNLOAD ===
+    st.divider()
+    excel_data = to_excel(df)
+    st.download_button(
+        label="Tai Xuong Du Lieu (Excel)",
+        data=excel_data,
+        file_name=f"{symbol}_technical_analysis.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # === SECTOR SCANNER ===
+    st.divider()
+    st.markdown("### So sanh nganh")
+    
+    if selected_sector == "Tat ca":
+        scan_symbols = ALL_SYMBOLS
+    else:
+        scan_symbols = SECTOR_PEERS.get(selected_sector, [])
+    
+    if st.button("Bat dau quet", type="primary"):
+        results_df = scan_sector(scan_symbols, days)
+        
+        if not results_df.empty:
+            results_df = results_df.sort_values('Diem', ascending=False)
+            
             st.dataframe(
-                df.tail(50).style.format({
-                    'Open': '{:,.0f}',
-                    'High': '{:,.0f}',
-                    'Low': '{:,.0f}',
-                    'Close': '{:,.0f}',
-                    'Volume': '{:,.0f}'
-                }),
+                results_df,
                 use_container_width=True,
                 height=500
             )
-        else:
-            st.info("📭 Không có dữ liệu để hiển thị")
-    
-    # ============================================================
-    # TAB 4: NEWS
-    # ============================================================
-    with tab4:
-        st.markdown('<p style="color:#58a6ff; margin-bottom:10px;"><b>TIN TỨC</b></p>', unsafe_allow_html=True)
-        
-        st.info("""
-            📰 **Tính năng đang phát triển**
             
-            Chúng tôi đang làm việc để tích hợp tin tức cổ phiếu.
-        """)
-    
-    # ============================================================
-    # TAB 5: GUIDE
-    # ============================================================
-    with tab5:
-        st.markdown('<p style="color:#58a6ff; margin-bottom:10px;"><b>HƯỚNG DẪN SỬ DỤNG</b></p>', unsafe_allow_html=True)
-        
-        st.markdown("""
-            ## 📖 Cách sử dụng Pro Trader Terminal v5.3.1
-            
-            ### 1. Nhập mã cổ phiếu
-            - Nhập mã 3 chữ cái (VD: HPG, VPB, SSI)
-            
-            ### 2. Xem phân tích kỹ thuật
-            - **Tab 1**: Xem chart và tín hiệu MUA/BÁN
-            - Các chỉ báo: RSI, MACD, EMA, Bollinger Bands
-            
-            ### 3. So sánh ngành
-            - **Tab 2**: So sánh nhiều cổ phiếu cùng ngành
-            
-            ### 4. Giải thích tín hiệu
-            
-            | Tín hiệu | Điểm | Hành động |
-            |----------|------|-----------|
-            | 🚀 MUA MẠNH | ≥ 4 | Cân nhắc MUA |
-            | ✅ TÍCH CỰC | 2-3 | Theo dõi |
-            | ⚖️ TRUNG LẬP | -1 đến 1 | Chờ đợi |
-            | ⚠️ TIÊU CỰC | -2 đến -3 | Cẩn trọng |
-            | 🚨 BÁN MẠNH | ≤ -4 | Cân nhắc BÁN |
-            
-            ### ⚠️ Cảnh báo
-            
-            - Ứng dụng chỉ mang tính chất THAM KHẢO
-            - Không phải lời khuyên đầu tư
-        """)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mua manh", len(results_df[results_df['Tin hieu'] == 'MUA MANH']))
+            with col2:
+                st.metric("Ban manh", len(results_df[results_df['Tin hieu'] == 'BAN MANH']))
+            with col3:
+                st.metric("Tong co phieu", len(results_df))
     
     # === FOOTER ===
     st.divider()
-    st.markdown(f"""
-        <div style="text-align:center; color:#8b949e; padding:10px;">
-            <p style="margin:0;">Pro Trader Terminal v5.3.1 | Data: {info.get('source', 'N/A')} | 
-            Runtime: {info.get('runtime', 0)}s | © 2024</p>
-        </div>
-    """, unsafe_allow_html=True)
+    source = info.get('source', 'N/A')
+    runtime = info.get('runtime', 0)
+    st.markdown(f"Pro Trader Terminal v5.3.2 | Data: {source} | Runtime: {runtime}s")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,27 @@
+# ════════════════════════════════════════════════════════════════
+# requirements.txt - Pro Trader Terminal v5.3
+# Streamlit Cloud Deployment
+# ════════════════════════════════════════════════════════════════
+
+# Core Framework
+streamlit>=1.28.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Charting
+plotly>=5.18.0
+
+# HTTP Requests
+requests>=2.31.0
+
+# Alternative Data Sources
+yfinance>=0.2.36
+
+# === OPTIONAL - Install if needed ===
+# Technical Analysis
+# ta>=0.10.0
+
+# Vietnam Stock Data (vnstock) - May have compatibility issues
+# vnstock>=0.2.0
